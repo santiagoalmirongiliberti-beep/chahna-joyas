@@ -13,6 +13,22 @@ const precio = n => Number(n) > 0 ? "$ " + Number(n).toLocaleString("es-AR") : "
 const fotoHD = (url, w) => String(url).replace(/sz=w\d+/, "sz=w" + w);
 const norm = v => String(v ?? "").trim().toLowerCase();
 
+// Saca el id de la pieza de cualquier lugar donde pueda venir
+function idDesdeEvento(event) {
+  const q = event.queryStringParameters || {};
+  const candidatos = [q.id, event.path, event.rawUrl, event.rawPath];
+  for (const c of candidatos) {
+    const texto = String(c || "");
+    const m = texto.match(/pieza\/([^\/?#&]+)/);
+    if (m) {
+      const valor = decodeURIComponent(m[1]).trim();
+      if (valor && valor !== ":id") return valor;
+    }
+  }
+  const directo = String(q.id || "").trim();
+  return directo && directo !== ":id" ? directo : "";
+}
+
 async function leerProductos() {
   const res = await fetch(SHEET_API_URL);
   const texto = await res.text();
@@ -54,7 +70,7 @@ function pagina({ titulo, descripcion, imagen, url, destino }) {
 
 exports.handler = async (event) => {
   const q = event.queryStringParameters || {};
-  const id = String(q.id || "").trim();
+  const id = idDesdeEvento(event);
   const url = `${SITIO}/pieza/${encodeURIComponent(id)}`;
 
   let productos = [];
@@ -69,9 +85,11 @@ exports.handler = async (event) => {
   if (q.debug === "1") {
     const texto = [
       "id buscado: " + JSON.stringify(id),
+      "path: " + JSON.stringify(event.path),
+      "rawUrl: " + JSON.stringify(event.rawUrl),
+      "queryStringParameters: " + JSON.stringify(q),
       "error: " + (error || "ninguno"),
-      "cantidad de piezas leídas: " + productos.length,
-      "ids en la planilla: " + productos.map(x => JSON.stringify(x.id)).slice(0, 80).join(", ")
+      "cantidad de piezas leídas: " + productos.length
     ].join("\n");
     return { statusCode: 200, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: texto };
   }
@@ -93,7 +111,7 @@ exports.handler = async (event) => {
     };
   }
 
-  // Pieza no encontrada o planilla con error: vista previa de respaldo, sin mandar a la portada
+  // Pieza no encontrada o planilla con error: vista previa de respaldo
   return {
     statusCode: 200,
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
