@@ -274,6 +274,14 @@
   .detalle-acciones .btn-carrito{ margin: 0; height: 48px; padding: 0 22px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
   .btn-compartir{ height: 48px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; font-family: 'Jost', sans-serif; font-size: 15px; font-weight: 500; background: #fff; color: var(--wine-deep); border: 1.5px solid var(--wine-deep); border-radius: 4px; padding: 0 22px; cursor: pointer; }
   .btn-compartir:hover{ background: var(--ivory-deep); }
+  .product-info{ position: relative; }
+  .product-info .product-name{ padding-right: 44px; }
+  .tarjeta-compartir{ position: absolute; top: 20px; right: 16px; width: 36px; height: 36px; box-sizing: border-box; padding: 0; border-radius: 50%; border: 1.5px solid var(--wine-deep); background: #fff; color: var(--wine-deep); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; }
+  .tarjeta-compartir:hover{ background: var(--ivory-deep); }
+  @media (max-width: 699px){
+    .tarjeta-compartir{ top: 10px; right: 8px; width: 32px; height: 32px; }
+    .product-info .product-name{ padding-right: 40px; }
+  }
 </style>
 </head>
 <body>
@@ -499,6 +507,9 @@
         <article class="product${agotado ? ' agotado' : ''}" data-id="${esc(p.id)}">
           <div class="product-art${conFoto ? ' con-foto' : ''}">${foto}</div>
           <div class="product-info">
+            <button type="button" class="tarjeta-compartir" data-compartir="${esc(p.id)}" aria-label="Compartir">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </button>
             <h2 class="product-name">${esc(p.nombre)}</h2>
             ${Number(p.precio) > 0 ? `<p class="product-price">${formatoPrecio(p.precio)}</p>` : ""}
             ${medidasHTML(p)}
@@ -705,6 +716,8 @@
     document.getElementById("grid").addEventListener("click", e => {
       const b = e.target.closest(".btn-carrito");
       if(b){ agregarAlCarrito(b.dataset.id, b); return; }
+      const cmp = e.target.closest("[data-compartir]");
+      if(cmp){ compartirPieza(cmp.dataset.compartir, cmp); return; }
       const tarjeta = e.target.closest(".product");
       if(tarjeta) abrirDetalle(tarjeta.dataset.id);
     });
