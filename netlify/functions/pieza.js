@@ -11,33 +11,24 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
 
 const precio = n => Number(n) > 0 ? "$ " + Number(n).toLocaleString("es-AR") : "";
 const fotoHD = (url, w) => String(url).replace(/sz=w\d+/, "sz=w" + w);
+const norm = v => String(v ?? "").trim().toLowerCase();
 
-exports.handler = async (event) => {
-  const id = String((event.queryStringParameters && event.queryStringParameters.id) || "").trim();
-
-  let p = null;
+async function leerProductos() {
+  const res = await fetch(SHEET_API_URL);
+  const texto = await res.text();
+  let data;
   try {
-    const res = await fetch(SHEET_API_URL);
-    const lista = await res.json();
-    p = Array.isArray(lista) ? lista.find(x => String(x.id) === id) : null;
+    data = JSON.parse(texto);
   } catch (e) {
-    p = null;
+    throw new Error("La planilla no devolvió datos válidos: " + texto.slice(0, 100));
   }
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.productos)) return data.productos;
+  throw new Error("Formato inesperado de la planilla");
+}
 
-  // Si la pieza no existe, mandamos a la portada
-  if (!p) {
-    return { statusCode: 302, headers: { Location: `${SITIO}/` } };
-  }
-
-  const url = `${SITIO}/pieza/${encodeURIComponent(id)}`;
-  const destino = `${SITIO}/#pieza=${encodeURIComponent(id)}`;
-  const titulo = `${p.nombre} | Chahna Joyas`;
-  const datos = [precio(p.precio), p.peso, p.tamano, p.especificaciones]
-    .map(x => String(x ?? "").trim()).filter(Boolean).join(" · ");
-  const descripcion = (datos || "Joya de plata de Chahna Joyas").slice(0, 300);
-  const imagen = p.foto && String(p.foto).trim() ? fotoHD(String(p.foto).trim(), 1200) : LOGO;
-
-  const html = `<!DOCTYPE html>
+function pagina({ titulo, descripcion, imagen, url, destino }) {
+  return `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -55,17 +46,63 @@ exports.handler = async (event) => {
 <meta http-equiv="refresh" content="0; url=${esc(destino)}">
 </head>
 <body>
-<a href="${esc(destino)}">Ver ${esc(p.nombre)}</a>
+<a href="${esc(destino)}">Ver ${esc(titulo)}</a>
 <script>location.replace(${JSON.stringify(destino)});</script>
 </body>
 </html>`;
+}
 
+exports.handler = async (event) => {
+  const q = event.queryStringParameters || {};
+  const id = String(q.id || "").trim();
+  const url = `${SITIO}/pieza/${encodeURIComponent(id)}`;
+
+  let productos = [];
+  let error = null;
+  try {
+    productos = await leerProductos();
+  } catch (e) {
+    error = e.message;
+  }
+
+  // Modo diagnóstico: /pieza/AAB0003?debug=1
+  if (q.debug === "1") {
+    const texto = [
+      "id buscado: " + JSON.stringify(id),
+      "error: " + (error || "ninguno"),
+      "cantidad de piezas leídas: " + productos.length,
+      "ids en la planilla: " + productos.map(x => JSON.stringify(x.id)).slice(0, 80).join(", ")
+    ].join("\n");
+    return { statusCode: 200, headers: { "Content-Type": "text/plain; charset=utf-8" }, body: texto };
+  }
+
+  const p = productos.find(x => norm(x.id) === norm(id));
+
+  // Pieza encontrada: vista previa completa con su foto y datos
+  if (p) {
+    const destino = `${SITIO}/#pieza=${encodeURIComponent(id)}`;
+    const titulo = `${p.nombre} | Chahna Joyas`;
+    const datos = [precio(p.precio), p.peso, p.tamano, p.especificaciones]
+      .map(x => String(x ?? "").trim()).filter(Boolean).join(" · ");
+    const descripcion = (datos || "Joya de plata de Chahna Joyas").slice(0, 300);
+    const imagen = p.foto && String(p.foto).trim() ? fotoHD(String(p.foto).trim(), 1200) : LOGO;
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=0, s-maxage=300" },
+      body: pagina({ titulo, descripcion, imagen, url, destino })
+    };
+  }
+
+  // Pieza no encontrada o planilla con error: vista previa de respaldo, sin mandar a la portada
   return {
     statusCode: 200,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-cache"
-    },
-    body: html
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
+    body: pagina({
+      titulo: "Chahna Joyas | Joyas de plata, aros y más",
+      descripcion: "Catálogo de joyas de plata de Chahna Joyas. Mirá la disponibilidad de cada pieza y hacé tu pedido por WhatsApp.",
+      imagen: LOGO,
+      url,
+      destino: `${SITIO}/`
+    })
   };
 };
