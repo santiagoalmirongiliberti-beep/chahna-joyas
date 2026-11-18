@@ -794,7 +794,7 @@
   // Link directo de cada pieza: #pieza=ID
   const SITIO_PUBLICO = "https://chahnajoyas.netlify.app";
   function linkPieza(id){
-    return `${SITIO_PUBLICO}/pieza/${encodeURIComponent(id)}`;
+    return `${SITIO_PUBLICO}/#pieza=${encodeURIComponent(id)}`;
   }
 
   async function compartirPieza(id, btn){
