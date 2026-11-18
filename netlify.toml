@@ -1,0 +1,10 @@
+[build]
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/pieza/:id"
+  to = "/.netlify/functions/pieza?id=:id"
+  status = 200
