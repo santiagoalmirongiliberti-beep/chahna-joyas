@@ -1,6 +1,3 @@
-// Vista previa de cada pieza para WhatsApp, Instagram, etc.
-// Lee la planilla en cada pedido, así que precio, stock y foto siempre están al día.
-
 const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbzmbLqrGFRqhc1PgIxIHpBLxFPO67Ibl-R6X1JZuuQmUSiaaT1SCtEYWaxmbu35c1NcVw/exec";
 const SITIO = "https://chahnajoyas.netlify.app";
 const LOGO = `${SITIO}/preview-chahna.jpg?v=2`;
@@ -29,8 +26,15 @@ function idDesdeEvento(event) {
   return directo && directo !== ":id" ? directo : "";
 }
 
+// Guarda la planilla en memoria cinco minutos para responder más rápido
+let cacheProductos = null;
+let cacheHora = 0;
+
 async function leerProductos() {
-  const res = await fetch(SHEET_API_URL);
+  const ahora = Date.now();
+  if (cacheProductos && ahora - cacheHora < 5 * 60 * 1000) return cacheProductos;
+
+  const res = await fetch(SHEET_API_URL, { signal: AbortSignal.timeout(8000) });
   const texto = await res.text();
   let data;
   try {
@@ -38,9 +42,12 @@ async function leerProductos() {
   } catch (e) {
     throw new Error("La planilla no devolvió datos válidos: " + texto.slice(0, 100));
   }
-  if (Array.isArray(data)) return data;
-  if (data && Array.isArray(data.productos)) return data.productos;
-  throw new Error("Formato inesperado de la planilla");
+  const lista = Array.isArray(data) ? data : (data && Array.isArray(data.productos) ? data.productos : null);
+  if (!lista) throw new Error("Formato inesperado de la planilla");
+
+  cacheProductos = lista;
+  cacheHora = ahora;
+  return lista;
 }
 
 function pagina({ titulo, descripcion, imagen, url, destino }) {
@@ -81,7 +88,7 @@ exports.handler = async (event) => {
     error = e.message;
   }
 
-  // Modo diagnóstico: /pieza/AAB0003?debug=1
+  // Modo diagnóstico: /pieza/AAB0005?debug=1
   if (q.debug === "1") {
     const texto = [
       "id buscado: " + JSON.stringify(id),
